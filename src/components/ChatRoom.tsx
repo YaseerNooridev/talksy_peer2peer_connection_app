@@ -162,7 +162,6 @@ const ChatRoom = ({ roomId }: RoomProps) => {
         </div>
       )}
       {myStream && <button onClick={sendStreams}>Send Stream</button>}
-
       {remoteSocketId && (
         <div>
           <button onClick={handleUserCall}>Start Video Call</button>

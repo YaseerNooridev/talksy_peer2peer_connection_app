@@ -2,7 +2,9 @@ import ChatRoom from "@/components/ChatRoom";
 
 export default async function ChatRooms({
   params,
-}: Readonly<{ params: { roomId: string } }>) {
+}: Readonly<{
+  params: Promise<{ roomId: string }>;
+}>) {
   const { roomId } = await params;
   console.log("params: ", roomId);
 

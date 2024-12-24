@@ -19,7 +19,7 @@ const LobbyRoom = () => {
     (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       socket?.emit("room:join", { email, room });
-      console.log({ email, room });
+      // console.log({ email, room });
     },
     [email, room, socket]
   );

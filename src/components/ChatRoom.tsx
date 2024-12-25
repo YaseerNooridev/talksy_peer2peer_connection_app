@@ -13,7 +13,7 @@ const ChatRoom = ({ roomId }: RoomProps) => {
 
   const [remoteSocketId, setRemoteSocketId] = useState<string | null>(null);
   const [remoteEmail, setRemoteEmail] = useState("");
-  const [isMyStreamBig, setIsMyStreamBig] = useState(true);
+  const [isMyStreamBig, setIsMyStreamBig] = useState(false);
   const switchStream = () => {
     setIsMyStreamBig(!isMyStreamBig);
   };
@@ -177,17 +177,18 @@ const ChatRoom = ({ roomId }: RoomProps) => {
       )}
 
       <div className="relative flex justify-center items-center w-full h-[70vh] bg-black rounded-lg overflow-hidden mb-4">
-        {isMyStreamBig && myStream && (
+        {/* Larger video window */}
+        {isMyStreamBig && myStream && remoteStream && (
           <ReactPlayer
-            url={myStream}
+            url={remoteStream} // Remote stream in the larger window
             playing
             muted
             className="absolute w-full h-full object-cover"
           />
         )}
-        {!isMyStreamBig && remoteStream && (
+        {!isMyStreamBig && myStream && remoteStream && (
           <ReactPlayer
-            url={remoteStream}
+            url={myStream} // Local stream in the larger window
             playing
             muted
             className="absolute w-full h-full object-cover"
@@ -200,6 +201,9 @@ const ChatRoom = ({ roomId }: RoomProps) => {
             role="button"
             className="absolute bottom-4 right-4 w-32 h-24 bg-gray-700 border-2 border-white rounded-lg overflow-hidden cursor-pointer flex justify-center items-center"
           >
+            <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded-md">
+              {isMyStreamBig ? "Friend" : "Me"}
+            </div>
             <ReactPlayer
               url={isMyStreamBig ? remoteStream : myStream}
               playing

@@ -1,5 +1,7 @@
 class PeerService {
   peer: RTCPeerConnection | null = null;
+  dataChannel: RTCDataChannel | null = null;
+
   constructor() {
     if (!this.peer) {
       this.peer = new RTCPeerConnection({
@@ -12,6 +14,74 @@ class PeerService {
           },
         ],
       });
+      this.createDataChannel();
+    }
+  }
+
+  // Create a data channel for text messaging and file transfer
+  createDataChannel() {
+    if (this.peer) {
+      this.dataChannel = this.peer.createDataChannel("chat", {
+        ordered: true,
+        maxRetransmits: 5,
+      });
+
+      this.dataChannel.onopen = () => {
+        console.log("Data channel is open");
+      };
+
+      this.dataChannel.onmessage = (event) => {
+        console.log("Message received in PeerService:", event.data);
+      };
+
+      this.dataChannel.onclose = () => {
+        console.log("Data channel closed");
+      };
+    } else {
+      console.error("PeerConnection not initialized!");
+    }
+  }
+
+  // Send text message
+  sendMessage(message: string) {
+    if (this.dataChannel?.readyState === "open") {
+      this.dataChannel.send(message);
+    } else {
+      console.log("Data channel is not open yet.");
+    }
+  }
+
+  // Send file chunks
+  sendFile(file: File) {
+    if (this.dataChannel?.readyState === "open") {
+      const chunkSize = 16384; // 16KB
+      const fileReader = new FileReader();
+      let offset = 0;
+
+      fileReader.onload = () => {
+        if (fileReader.result instanceof ArrayBuffer) {
+          // Ensure result is ArrayBuffer before sending
+          this.dataChannel?.send(fileReader.result);
+          offset += chunkSize;
+
+          if (offset < file.size) {
+            readNextChunk();
+          } else {
+            console.log("File transfer complete.");
+          }
+        } else {
+          console.error("FileReader result is not an ArrayBuffer.");
+        }
+      };
+
+      const readNextChunk = () => {
+        const blob = file.slice(offset, offset + chunkSize);
+        fileReader.readAsArrayBuffer(blob); // Ensure ArrayBuffer is read
+      };
+
+      readNextChunk(); // Start reading the first chunk
+    } else {
+      console.log("Data channel is not open yet.");
     }
   }
 

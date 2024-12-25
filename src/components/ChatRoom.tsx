@@ -144,6 +144,72 @@ const ChatRoom = ({ roomId }: RoomProps) => {
     });
   }, []);
 
+  const handleFileData = (data: ArrayBuffer) => {
+    // Create a Blob from the ArrayBuffer data
+    const fileBlob = new Blob([data]);
+
+    // You can use FileReader to convert the Blob to a file
+    const file = new File([fileBlob], "received_file", {
+      type: "application/octet-stream",
+    });
+
+    // Do something with the file, e.g., download it or display it
+    const fileUrl = URL.createObjectURL(file);
+    console.log("Received file: ", fileUrl);
+
+    // You can now use the file URL to show the file or trigger a download:
+    // For example, trigger a download (optional):
+    const link = document.createElement("a");
+    link.href = fileUrl;
+    link.download = file.name;
+    link.click();
+  };
+
+  // The receiver data channel handler function
+  const handleReceiverDataChannel = useCallback(
+    (event: RTCDataChannelEvent) => {
+      const dataChannel = event.channel;
+
+      // Ensure that the dataChannel is of the correct type (RTCDataChannel)
+      if (!(dataChannel instanceof RTCDataChannel)) {
+        console.error("Received invalid data channel");
+        return;
+      }
+
+      dataChannel.onmessage = (event: MessageEvent) => {
+        if (typeof event.data === "string") {
+          console.log("Received text message:", event.data);
+          // Assuming setMessages is a state setter function
+          // setMessages((prevMessages: Message[]) => [...prevMessages, event.data]);
+        } else if (event.data instanceof ArrayBuffer) {
+          console.log("Received file data:", event.data);
+          handleFileData(event.data);
+        }
+      };
+
+      dataChannel.onopen = () => {
+        console.log("Data channel is open on receiver side");
+      };
+
+      dataChannel.onclose = () => {
+        console.log("Data channel closed on receiver side");
+      };
+    },
+    []
+  );
+
+  useEffect(() => {
+    // Listen for datachannel event on the receiver side (remote peer)
+
+    // Attach the event listener for the datachannel event
+    peer.peer?.addEventListener("datachannel", handleReceiverDataChannel);
+
+    // Cleanup the listener when the component is unmounted
+    return () => {
+      peer.peer?.removeEventListener("datachannel", handleReceiverDataChannel);
+    };
+  }, [handleReceiverDataChannel]);
+
   useEffect(() => {
     socket?.on("user:join", handleUserJoin);
     socket?.on("incoming:call", handleIncomingCall);

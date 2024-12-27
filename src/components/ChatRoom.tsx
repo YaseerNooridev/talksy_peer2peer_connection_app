@@ -1,11 +1,18 @@
 "use client";
-import { useSocket } from "@/provider/SocketProvider";
 import React, { useCallback, useEffect, useState } from "react";
 import ReactPlayer from "react-player";
 import peer from "@/services/peer";
+import { useSocket } from "@/provider/SocketProvider";
+
 interface RoomProps {
   roomId: string;
 }
+
+interface Message {
+  sender: "ME" | "PEER";
+  text: string;
+}
+
 const ChatRoom = ({ roomId }: RoomProps) => {
   const socket = useSocket();
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
@@ -13,10 +20,9 @@ const ChatRoom = ({ roomId }: RoomProps) => {
 
   const [remoteSocketId, setRemoteSocketId] = useState<string | null>(null);
   const [remoteEmail, setRemoteEmail] = useState("");
-  const [isMyStreamBig, setIsMyStreamBig] = useState(false);
-  const switchStream = () => {
-    setIsMyStreamBig(!isMyStreamBig);
-  };
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
 
   const sendStreams = useCallback((streamData: MediaStream) => {
     if (streamData && peer?.peer) {
@@ -145,32 +151,36 @@ const ChatRoom = ({ roomId }: RoomProps) => {
   }, []);
 
   const handleFileData = (data: ArrayBuffer) => {
-    // Create a Blob from the ArrayBuffer data
     const fileBlob = new Blob([data]);
 
-    // You can use FileReader to convert the Blob to a file
     const file = new File([fileBlob], "received_file", {
       type: "application/octet-stream",
     });
 
-    // Do something with the file, e.g., download it or display it
     const fileUrl = URL.createObjectURL(file);
     console.log("Received file: ", fileUrl);
 
-    // You can now use the file URL to show the file or trigger a download:
-    // For example, trigger a download (optional):
     const link = document.createElement("a");
     link.href = fileUrl;
     link.download = file.name;
     link.click();
   };
 
-  // The receiver data channel handler function
+  const handleSendMessage = useCallback(() => {
+    if (newMessage.trim()) {
+      peer.sendMessage(newMessage);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { sender: "ME", text: newMessage },
+      ]);
+      setNewMessage("");
+    }
+  }, [newMessage]);
+
   const handleReceiverDataChannel = useCallback(
     (event: RTCDataChannelEvent) => {
       const dataChannel = event.channel;
 
-      // Ensure that the dataChannel is of the correct type (RTCDataChannel)
       if (!(dataChannel instanceof RTCDataChannel)) {
         console.error("Received invalid data channel");
         return;
@@ -178,9 +188,11 @@ const ChatRoom = ({ roomId }: RoomProps) => {
 
       dataChannel.onmessage = (event: MessageEvent) => {
         if (typeof event.data === "string") {
-          console.log("Received text message:", event.data);
-          // Assuming setMessages is a state setter function
-          // setMessages((prevMessages: Message[]) => [...prevMessages, event.data]);
+          console.log("Received text message:", event);
+          setMessages((prev) => [
+            ...prev,
+            { sender: "PEER", text: event.data },
+          ]);
         } else if (event.data instanceof ArrayBuffer) {
           console.log("Received file data:", event.data);
           handleFileData(event.data);
@@ -199,12 +211,7 @@ const ChatRoom = ({ roomId }: RoomProps) => {
   );
 
   useEffect(() => {
-    // Listen for datachannel event on the receiver side (remote peer)
-
-    // Attach the event listener for the datachannel event
     peer.peer?.addEventListener("datachannel", handleReceiverDataChannel);
-
-    // Cleanup the listener when the component is unmounted
     return () => {
       peer.peer?.removeEventListener("datachannel", handleReceiverDataChannel);
     };
@@ -234,50 +241,33 @@ const ChatRoom = ({ roomId }: RoomProps) => {
 
   return (
     <div className="flex flex-col items-center bg-gray-100 min-h-screen p-4 w-full">
-      <h1 className="text-2xl font-bold mb-4 text-black">Room: {roomId}</h1>
-
       {remoteSocketId && remoteEmail && (
-        <p className="text-lg font-medium mb-4">
-          Connected with: {remoteEmail}
-        </p>
+        <div className="flex flex-col justify-center items-center">
+          <h1 className="text-sm font-bold">Room: {roomId}</h1>
+          <p className="text-lg font-medium ">Connected with: {remoteEmail}</p>
+        </div>
       )}
 
       <div className="relative flex justify-center items-center w-full h-[70vh] bg-black rounded-lg overflow-hidden mb-4">
-        {/* Larger video window */}
-        {isMyStreamBig && myStream && remoteStream && (
+        {remoteStream && (
           <ReactPlayer
-            url={remoteStream} // Remote stream in the larger window
-            playing
-            muted
-            className="absolute w-full h-full object-cover"
-          />
-        )}
-        {!isMyStreamBig && myStream && remoteStream && (
-          <ReactPlayer
-            url={myStream} // Local stream in the larger window
+            url={remoteStream}
             playing
             muted
             className="absolute w-full h-full object-cover"
           />
         )}
 
-        {myStream && remoteStream && (
-          <div
-            onClick={switchStream}
-            role="button"
-            className="absolute bottom-4 right-4 w-32 h-24 bg-gray-700 border-2 border-white rounded-lg overflow-hidden cursor-pointer flex justify-center items-center"
-          >
-            <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded-md">
-              {isMyStreamBig ? "Friend" : "Me"}
-            </div>
+        <div className="absolute bottom-4 right-4 w-32 h-24 bg-gray-700 border-2 border-white rounded-lg overflow-hidden cursor-pointer flex justify-center items-center">
+          {myStream && (
             <ReactPlayer
-              url={isMyStreamBig ? remoteStream : myStream}
+              url={myStream}
               playing
               muted
               className="w-full h-full object-contain"
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="flex gap-4">
@@ -297,6 +287,42 @@ const ChatRoom = ({ roomId }: RoomProps) => {
             Start Video Call
           </button>
         )}
+      </div>
+
+      {/* Chat Section */}
+      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md p-4">
+        {/* Messages */}
+        <div className="flex flex-col space-y-2 overflow-y-auto h-64 mb-4">
+          {messages.map((message, index) => (
+            <div
+              key={`${message.sender}-${message.text}-${index}`}
+              className={`p-2 rounded-md ${
+                message.sender === "ME"
+                  ? "bg-blue-500 text-white self-end"
+                  : "bg-gray-200 text-black self-start"
+              }`}
+            >
+              {message.text}
+            </div>
+          ))}
+        </div>
+
+        {/* Input */}
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            className="flex-1 p-2 border border-gray-300 rounded-md"
+            placeholder="Type your message..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+          />
+          <button
+            onClick={handleSendMessage}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -6,10 +6,9 @@ export default async function ChatRooms({
   params: Promise<{ roomId: string }>;
 }>) {
   const { roomId } = await params;
-  console.log("params: ", roomId);
 
   return (
-    <div className="w-screen h-screen flex flex-col justify-center items-center">
+    <div className="">
       <ChatRoom roomId={roomId} />
     </div>
   );
